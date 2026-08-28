@@ -1,6 +1,6 @@
 # LX Remote (Tauri 版)
 
-洛雪音乐（LX Music）桌面悬浮遥控窗。用 **Tauri 2**（系统 WebView2，无内置 Chromium）重写，体积从 Electron 版的 **272 MB 降到约 10 MB**，并原生支持系统托盘。
+洛雪音乐（LX Music）桌面悬浮遥控窗，使用 Tauri 构建。
 
 ![认可linux.do](https://ld.xh.do/ld-badge.svg)
 
