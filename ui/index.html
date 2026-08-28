@@ -1,0 +1,1044 @@
+<!doctype html>
+<html lang="zh-cn">
+<head>
+  <meta charset="utf-8" />
+  <title>LX Remote</title>
+  <style>
+    /* ============== 主题变量 ============== */
+    :root {
+      --bg: rgba(20, 20, 26, 0.78);
+      --bg-strong: rgba(20, 20, 26, 0.95);
+      --fg: #f5f5f7;
+      --fg-dim: rgba(245, 245, 247, 0.65);
+      --accent: #07c556;
+      --accent-2: #18d27a;
+      --track: rgba(255, 255, 255, 0.18);
+      --track-fill: rgba(255, 255, 255, 0.85);
+      --thumb: #ffffff;
+      --border: rgba(255, 255, 255, 0.08);
+      --shadow: 0 8px 30px rgba(0, 0, 0, 0.45);
+      --radius: 14px;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      background: transparent;
+      color: var(--fg);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', Roboto, sans-serif;
+      font-size: 13px;
+      -webkit-font-smoothing: antialiased;
+      user-select: none;
+      overflow: hidden;
+    }
+
+    /* ============== 主体容器 ============== */
+    .app {
+      width: 100%;
+      height: 100%;
+      background: var(--bg);
+      backdrop-filter: blur(20px) saturate(160%);
+      -webkit-backdrop-filter: blur(20px) saturate(160%);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .app.mode-simple { padding-bottom: 6px; }
+
+    /* ============== 标题栏（可拖动） ============== */
+    .titlebar {
+      flex: 0 0 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 6px 0 10px;
+      -webkit-app-region: drag;
+      cursor: grab;
+    }
+    .titlebar .brand {
+      font-size: 11px;
+      color: var(--fg-dim);
+      letter-spacing: 0.5px;
+    }
+    .titlebar .brand b { color: var(--accent); font-weight: 600; }
+    .titlebar .win-controls {
+      display: flex;
+      gap: 4px;
+      -webkit-app-region: no-drag;
+    }
+    .win-btn {
+      width: 18px; height: 18px;
+      border-radius: 4px;
+      border: none;
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--fg-dim);
+      cursor: pointer;
+      font-size: 11px;
+      line-height: 1;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s, color 0.15s;
+    }
+    .win-btn:hover { background: rgba(255, 255, 255, 0.18); color: var(--fg); }
+    .win-btn.close:hover { background: #e14; color: #fff; }
+
+    /* ============== 内容区 ============== */
+    .body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 6px 12px 10px;
+      gap: 8px;
+      min-height: 0;
+    }
+
+    /* ============== 歌曲名 ============== */
+    .track-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-height: 36px;
+    }
+    .track-name {
+      font-size: 14px;
+      font-weight: 600;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+    .track-meta {
+      font-size: 11px;
+      color: var(--fg-dim);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* ============== 歌词行 ============== */
+    .lyric-line {
+      font-size: 12px;
+      color: var(--fg-dim);
+      line-height: 1.35;
+      min-height: 30px;
+      max-height: 30px;
+      overflow: hidden;
+      text-align: center;
+      padding: 0 4px;
+      font-style: italic;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+    }
+    .lyric-line.active { color: var(--fg); }
+
+    /* ============== 进度条 ============== */
+    .progress-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 10px;
+      color: var(--fg-dim);
+      font-variant-numeric: tabular-nums;
+    }
+    .progress-track {
+      flex: 1;
+      position: relative;
+      height: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+    }
+    .progress-track .rail {
+      width: 100%;
+      height: 3px;
+      background: var(--track);
+      border-radius: 2px;
+      position: relative;
+      overflow: visible;
+    }
+    .progress-track .fill {
+      position: absolute;
+      top: 0; left: 0;
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), var(--accent-2));
+      border-radius: 2px;
+      transition: width 0.15s linear;
+    }
+    .progress-track.dragging .fill,
+    .volume-track.dragging .fill { transition: none; }
+    }
+    .progress-track .thumb {
+      position: absolute;
+      top: 50%;
+      width: 11px; height: 11px;
+      background: var(--thumb);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s, transform 0.15s;
+    }
+    .progress-track:hover .thumb,
+    .progress-track.dragging .thumb { opacity: 1; }
+    .progress-track .thumb::after {
+      content: '';
+      position: absolute;
+      inset: -6px;
+      border-radius: 50%;
+    }
+    .progress-track.dragging .rail { height: 5px; }
+    .time-now, .time-total { min-width: 30px; text-align: center; }
+
+    /* ============== 控制按钮 ============== */
+    .controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .controls .group {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+    .btn {
+      width: 32px; height: 32px;
+      border-radius: 8px;
+      border: none;
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--fg);
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s, transform 0.1s;
+      flex-shrink: 0;
+    }
+    .btn:hover { background: rgba(255, 255, 255, 0.14); }
+    .btn:active { transform: scale(0.94); }
+    .btn svg { width: 16px; height: 16px; fill: currentColor; }
+    .btn.play {
+      width: 40px; height: 40px;
+      background: var(--accent);
+      color: #0c0c10;
+    }
+    .btn.play:hover { background: var(--accent-2); }
+    .btn.play svg { width: 18px; height: 18px; }
+
+    /* ============== 音量 ============== */
+    .volume-wrap {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex: 1;
+      min-width: 0;
+    }
+    .volume-wrap svg { width: 14px; height: 14px; fill: var(--fg-dim); flex-shrink: 0; }
+    .volume-track {
+      flex: 1;
+      position: relative;
+      height: 16px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      min-width: 30px;
+    }
+    .volume-track .rail {
+      width: 100%;
+      height: 3px;
+      background: var(--track);
+      border-radius: 2px;
+      position: relative;
+    }
+    .volume-track .fill {
+      position: absolute;
+      top: 0; left: 0;
+      height: 100%;
+      width: 80%;
+      background: var(--track-fill);
+      border-radius: 2px;
+    }
+    .volume-track .thumb {
+      position: absolute;
+      top: 50%;
+      width: 9px; height: 9px;
+      background: var(--thumb);
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+    .volume-track:hover .thumb,
+    .volume-track.dragging .thumb { opacity: 1; }
+    .volume-track.dragging .rail { height: 5px; }
+    .volume-val {
+      font-size: 10px;
+      color: var(--fg-dim);
+      min-width: 26px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* ============== 设置面板 ============== */
+    /* ============== 设置面板（窗口式） ============== */
+    .settings {
+      position: absolute;
+      z-index: 10;
+      top: 6px; right: 6px; left: 6px;
+      background: rgba(21, 21, 29, 0.97);
+      backdrop-filter: blur(28px) saturate(160%);
+      -webkit-backdrop-filter: blur(28px) saturate(160%);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 14px;
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+      padding: 8px 14px 14px;
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      font-size: 12px;
+      -webkit-app-region: no-drag;
+      animation: settingsIn 0.16s ease;
+    }
+    @keyframes settingsIn {
+      from { opacity: 0; transform: translateY(-8px) scale(0.97); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .settings.show { display: flex; }
+    .settings-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 2px;
+    }
+    .settings-title {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--fg);
+      letter-spacing: 0.5px;
+    }
+    .settings label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--fg);
+    }
+    .settings input[type="text"], .settings input[type="number"] {
+      flex: 1;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid var(--border);
+      color: var(--fg);
+      padding: 4px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-family: inherit;
+      outline: none;
+    }
+    .settings input[type="text"]:focus, .settings input[type="number"]:focus {
+      border-color: var(--accent);
+    }
+    .settings .row { display: flex; align-items: center; gap: 6px; }
+    .settings .row label { flex: 1; cursor: pointer; }
+    .settings .btn-row { display: flex; gap: 6px; }
+    .settings .btn-row .btn { flex: 1; height: 28px; width: auto; font-size: 11px; padding: 0 8px; }
+
+    /* toggle */
+    .toggle {
+      position: relative;
+      width: 32px; height: 18px;
+      background: rgba(255, 255, 255, 0.15);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: background 0.15s;
+      flex-shrink: 0;
+    }
+    .toggle::after {
+      content: '';
+      position: absolute;
+      top: 2px; left: 2px;
+      width: 14px; height: 14px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.15s;
+    }
+    .toggle.on { background: var(--accent); }
+    .toggle.on::after { transform: translateX(14px); }
+
+    /* ============== 状态指示 ============== */
+    .conn-status {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: #f44;
+      display: inline-block;
+      margin-right: 4px;
+    }
+    .conn-status.connected { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+
+    /* ============== 简洁模式 ============== */
+    .app.mode-simple .lyric-line { display: none; }
+    .app.mode-simple .track-meta { display: none; }
+    .app.mode-simple .track-info { min-height: 0; gap: 0; }
+    .app.mode-simple .track-name { font-size: 11px; line-height: 1.15; }
+    .app.mode-simple .body { padding: 3px 10px 6px; gap: 3px; }
+  </style>
+</head>
+<body>
+  <div class="app" id="app">
+    <!-- 标题栏 -->
+    <div class="titlebar">
+      <div class="brand">
+        <span class="conn-status" id="connDot"></span>
+        <b>LX</b> Remote
+      </div>
+      <div class="win-controls">
+        <button class="win-btn" id="btnSettings" title="设置">⚙</button>
+        <button class="win-btn" id="btnPin" title="置顶切换">📌</button>
+        <button class="win-btn close" id="btnClose" title="关闭（最小化到托盘）">×</button>
+      </div>
+    </div>
+
+    <!-- 设置面板 -->
+    <div class="settings" id="settingsPanel">
+      <div class="settings-head">
+        <span class="settings-title">设置</span>
+        <button class="win-btn close" id="btnSettingsClose" title="关闭">×</button>
+      </div>
+      <label>API 地址
+        <input type="text" id="apiHost" placeholder="127.0.0.1:23330" />
+      </label>
+      <div class="row">
+        <label>窗口置顶</label>
+        <div class="toggle on" id="tglPin"></div>
+      </div>
+      <div class="row">
+        <label>简洁模式</label>
+        <div class="toggle" id="tglSimple"></div>
+      </div>
+      <div class="row">
+        <label>鼠标穿透</label>
+        <div class="toggle" id="tglPassthrough"></div>
+      </div>
+      <label>不透明度 <span id="opacityVal" style="color:var(--fg-dim);font-size:11px;">100%</span>
+        <input type="range" id="opacityRange" min="30" max="100" value="100" style="flex:1;accent-color:var(--accent)" />
+      </label>
+      <div class="btn-row">
+        <button class="btn" id="btnReconnect">重连</button>
+        <button class="btn" id="btnClearCache">清缓存</button>
+      </div>
+    </div>
+
+    <!-- 内容 -->
+    <div class="body">
+      <div class="track-info">
+        <div class="track-name" id="trackName">未连接</div>
+        <div class="track-meta" id="trackMeta">— —</div>
+      </div>
+
+      <div class="lyric-line" id="lyricLine">等待 LX Music 推送…</div>
+
+      <div class="progress-wrap">
+        <span class="time-now" id="timeNow">0:00</span>
+        <div class="progress-track" id="progressTrack">
+          <div class="rail">
+            <div class="fill" id="progressFill"></div>
+          </div>
+          <div class="thumb" id="progressThumb"></div>
+        </div>
+        <span class="time-total" id="timeTotal">0:00</span>
+      </div>
+
+      <div class="controls">
+        <div class="group">
+          <button class="btn" id="btnPrev" title="上一首">
+            <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+          </button>
+          <button class="btn play" id="btnPlay" title="播放/暂停">
+            <svg viewBox="0 0 24 24" id="playIcon"><path d="M8 5v14l11-7z"/></svg>
+          </button>
+          <button class="btn" id="btnNext" title="下一首">
+            <svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+          </button>
+        </div>
+        <div class="volume-wrap">
+          <svg viewBox="0 0 24 24" id="volIcon"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
+          <div class="volume-track" id="volumeTrack">
+            <div class="rail">
+              <div class="fill" id="volumeFill"></div>
+            </div>
+            <div class="thumb" id="volumeThumb"></div>
+          </div>
+          <span class="volume-val" id="volumeVal">80</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ==========================================================
+    //  LX Remote - Tauri 渲染层
+    // ==========================================================
+
+    const DEFAULT_API = 'http://127.0.0.1:23330';
+    const FILTER_KEYS = [
+      'status', 'name', 'singer', 'albumName',
+      'lyricLineText', 'duration', 'progress', 'playbackRate'
+    ].join(',');
+
+    const $ = (id) => document.getElementById(id);
+
+    // ---- Tauri 桥（withGlobalTauri 启用） ----
+    const T = window.__TAURI__ || {};
+    const tauriWin = T.window ? T.window.getCurrentWindow() : null;
+    const tauriEvent = T.event || null;
+
+    const state = {
+      apiBase: localStorage.getItem('lxr.apiBase') || DEFAULT_API,
+      alwaysOnTop: true,
+      passthrough: false,
+      ignoreMouse: false,
+      simpleMode: false,
+      connected: false,
+      playing: false,
+      name: '',
+      singer: '',
+      album: '',
+      duration: 0,
+      progress: 0,
+      localTickAt: 0,
+      lyricLineText: '',
+      lyrics: [],
+      lyricIndex: -1,
+      lyricLoading: false,
+      lyricSeq: 0,
+    };
+
+    // ---- 工具 ----
+    function fmtTime(sec) {
+      if (!isFinite(sec) || sec < 0) sec = 0;
+      const m = Math.floor(sec / 60);
+      const s = Math.floor(sec % 60);
+      return `${m}:${String(s).padStart(2, '0')}`;
+    }
+    function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+    function pct(v, total) { return total > 0 ? clamp(v / total, 0, 1) * 100 : 0; }
+
+    // ---- API 调用 ----
+    async function api(method, path) {
+      const url = `${state.apiBase}${path}`;
+      try {
+        const r = await fetch(url, { method, cache: 'no-store' });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r;
+      } catch (err) {
+        console.error('[LX] api error', method, path, err);
+        setConnected(false);
+        throw err;
+      }
+    }
+    const play = () => api('GET', '/play').catch(() => {});
+    const pause = () => api('GET', '/pause').catch(() => {});
+    const prev = () => api('GET', '/skip-prev').catch(() => {});
+    const next = () => api('GET', '/skip-next').catch(() => {});
+    const setVolume = (v) => api('GET', `/volume?volume=${Math.round(clamp(v, 0, 100))}`).catch(() => {});
+    const seek = (sec) => api('GET', `/seek?offset=${sec.toFixed(2)}`).catch(() => {});
+
+    // ---- 歌词：拉取完整 LRC 时间轴，本地按进度即时计算当前行 ----
+    function parseLrc(text) {
+      const arr = [];
+      const re = /\[(\d{1,2}):(\d{1,2}(?:\.\d{1,3})?)\]([^\[]*)/g;
+      let m;
+      while ((m = re.exec(text))) {
+        const t = Number(m[1]) * 60 + Number(m[2]);
+        const s = (m[3] || '').trim();
+        if (s) arr.push({ time: t, text: s });
+      }
+      arr.sort((a, b) => a.time - b.time);
+      return arr;
+    }
+
+    async function fetchLyrics() {
+      const seq = ++state.lyricSeq;
+      state.lyricLoading = true;
+      try {
+        const r = await fetch(`${state.apiBase}/lyric-all`, { cache: 'no-store' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const data = await r.json();
+        if (seq !== state.lyricSeq) return; // 已切歌，丢弃旧结果
+        state.lyrics = parseLrc(data.lyric || '');
+        state.lyricIndex = -1;
+      } catch (e) {
+        if (seq === state.lyricSeq) state.lyrics = [];
+      } finally {
+        if (seq === state.lyricSeq) state.lyricLoading = false;
+      }
+    }
+
+    function updateLyricFromTime(cur) {
+      const L = state.lyrics;
+      if (!L.length) return;
+      let idx = state.lyricIndex;
+      if (idx < 0) idx = 0;
+      const lim = cur + 0.06; // 容忍 60ms 误差
+      while (idx + 1 < L.length && L[idx + 1].time <= lim) idx++;
+      while (idx > 0 && L[idx].time > lim) idx--;
+      if (idx !== state.lyricIndex) {
+        state.lyricIndex = idx;
+        const text = L[idx].text;
+        state.lyricLineText = text;
+        $('lyricLine').textContent = text;
+        $('lyricLine').classList.toggle('active', !!text);
+      }
+    }
+    // ---- 流式状态（LX Music /status 是 NDJSON 长连接，非标准 SSE） ----
+    let streamAbort = null;
+    let reconnectTimer = null;
+    let pollingTimer = null;
+
+    function startPolling() {
+      if (pollingTimer) clearInterval(pollingTimer);
+      pollingTimer = setInterval(async () => {
+        try {
+          const r = await fetch(`${state.apiBase}/status?filter=${FILTER_KEYS}`, { cache: 'no-store' });
+          if (!r.ok) throw new Error('bad status');
+          const data = await r.json();
+          setConnected(true);
+          applyStatus(data);
+        } catch (e) {
+          setConnected(false);
+        }
+      }, 2000);
+    }
+
+    function connect() {
+      if (streamAbort) streamAbort.abort();
+      streamAbort = new AbortController();
+      const url = `${state.apiBase}/status?filter=${encodeURIComponent(FILTER_KEYS)}`;
+      console.log('[LX] connecting stream:', url);
+      (async () => {
+        try {
+          const resp = await fetch(url, { signal: streamAbort.signal, cache: 'no-store' });
+          if (!resp.ok || !resp.body) throw new Error('HTTP ' + resp.status);
+          setConnected(true);
+          const reader = resp.body.getReader();
+          const decoder = new TextDecoder();
+          let buf = '';
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buf += decoder.decode(value, { stream: true });
+            let idx;
+            while ((idx = buf.indexOf('\n')) >= 0) {
+              const line = buf.slice(0, idx).trim();
+              buf = buf.slice(idx + 1);
+              if (!line) continue;
+              try { applyStatus(JSON.parse(line)); }
+              catch (e) { console.warn('[LX] parse line failed', e); }
+            }
+          }
+        } catch (e) {
+          if (e.name !== 'AbortError') {
+            console.warn('[LX] stream closed', e);
+            setConnected(false);
+          }
+        }
+        if (!streamAbort.signal.aborted) scheduleReconnect();
+      })();
+    }
+
+    function applyStatus(data) {
+      if (!data || typeof data !== 'object') return;
+      for (const key of ['status', 'name', 'singer', 'albumName', 'lyricLineText', 'duration', 'progress', 'playbackRate']) {
+        if (key in data) handleStatusUpdate(key, data[key]);
+      }
+    }
+
+    function scheduleReconnect() {
+      if (reconnectTimer) return;
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        connect();
+      }, 2000);
+    }
+
+    function setConnected(b) {
+      if (state.connected === b) return;
+      state.connected = b;
+      $('connDot').classList.toggle('connected', b);
+      if (!b) {
+        $('trackName').textContent = '未连接';
+        $('trackMeta').textContent = '请检查 LX Music 设置 → 网络 → openAPI';
+      }
+    }
+
+    function handleStatusUpdate(key, value) {
+      switch (key) {
+        case 'status':
+          state.playing = (value === 'playing');
+          $('playIcon').innerHTML = state.playing
+            ? '<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>'
+            : '<path d="M8 5v14l11-7z"/>';
+          break;
+        case 'name':
+          if (value && value !== state.name) {
+            // 切歌：清空旧歌词并拉取新歌词
+            state.lyrics = [];
+            state.lyricIndex = -1;
+            $('lyricLine').textContent = '…';
+            fetchLyrics();
+          }
+          state.name = value || '';
+          $('trackName').textContent = state.name || '—';
+          updateMeta();
+          break;
+        case 'singer':
+          state.singer = value || '';
+          updateMeta();
+          break;
+        case 'albumName':
+          state.album = value || '';
+          updateMeta();
+          break;
+        case 'duration':
+          state.duration = Number(value) || 0;
+          $('timeTotal').textContent = fmtTime(state.duration);
+          break;
+        case 'progress':
+          state.progress = Number(value) || 0;
+          state.localTickAt = performance.now();
+          break;
+        case 'lyricLineText':
+          state.lyricLineText = value || '';
+          $('lyricLine').textContent = state.lyricLineText || '';
+          $('lyricLine').classList.toggle('active', !!state.lyricLineText);
+          break;
+        case 'playbackRate':
+          break;
+      }
+    }
+
+    function updateMeta() {
+      const parts = [state.singer, state.album].filter(Boolean);
+      $('trackMeta').textContent = parts.join(' · ') || '— —';
+    }
+
+    // ---- 进度条本地插值 ----
+    let progressDragging = false, progressDragCur = 0;
+    function tickProgress() {
+      if (progressDragging) {
+        // 拖动中：不覆盖进度条 UI，歌词跟随预览位置
+        updateLyricFromTime(progressDragCur);
+      } else if (state.playing && state.duration > 0) {
+        const dt = (performance.now() - state.localTickAt) / 1000;
+        const cur = clamp(state.progress + dt, 0, state.duration);
+        updateProgressUI(cur);
+        updateLyricFromTime(cur);
+      } else {
+        updateProgressUI(state.progress);
+        updateLyricFromTime(state.progress);
+      }
+      // 兜底：有歌名但歌词尚未拉取（如流未推送 name）
+      if (state.name && !state.lyrics.length && !state.lyricLoading && state.connected) fetchLyrics();
+      requestAnimationFrame(tickProgress);
+    }
+
+    function updateProgressUI(cur) {
+      const p = pct(cur, state.duration);
+      $('progressFill').style.width = p + '%';
+      $('progressThumb').style.left = p + '%';
+      $('timeNow').textContent = fmtTime(cur);
+    }
+
+    // ---- 进度条拖动 ----
+    function setupSlider(trackEl, fillEl, thumbEl, opts) {
+      let dragging = false;
+      let currentPct = 0;
+
+      const setFromEvent = (clientX) => {
+        const rect = trackEl.getBoundingClientRect();
+        const p = clamp((clientX - rect.left) / rect.width, 0, 1);
+        currentPct = p;
+        fillEl.style.width = (p * 100) + '%';
+        thumbEl.style.left = (p * 100) + '%';
+        return p;
+      };
+
+      trackEl.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        dragging = true;
+        trackEl.classList.add('dragging');
+        trackEl.setPointerCapture(e.pointerId);
+        const p = setFromEvent(e.clientX);
+        if (opts.onChange) opts.onChange(p);
+        if (opts.onDragStart) opts.onDragStart();
+      });
+
+      trackEl.addEventListener('pointermove', (e) => {
+        if (!dragging) return;
+        const p = setFromEvent(e.clientX);
+        if (opts.onChange) opts.onChange(p);
+      });
+
+      const end = (e) => {
+        if (!dragging) return;
+        dragging = false;
+        trackEl.classList.remove('dragging');
+        try { trackEl.releasePointerCapture(e.pointerId); } catch (err) {}
+        if (opts.onCommit) opts.onCommit(currentPct);
+        if (opts.onDragEnd) opts.onDragEnd();
+      };
+
+      trackEl.addEventListener('pointerup', end);
+      trackEl.addEventListener('pointercancel', end);
+      trackEl.addEventListener('lostpointercapture', () => {
+        if (dragging) {
+          dragging = false;
+          trackEl.classList.remove('dragging');
+          if (opts.onCommit) opts.onCommit(currentPct);
+          if (opts.onDragEnd) opts.onDragEnd();
+        }
+      });
+
+      return {
+        setPct: (p) => { currentPct = p; fillEl.style.width = (p * 100) + '%'; thumbEl.style.left = (p * 100) + '%'; },
+      };
+    }
+
+    // ---- 音量条 ----
+    const volSlider = setupSlider(
+      $('volumeTrack'), $('volumeFill'), $('volumeThumb'),
+      {
+        onChange: (p) => { $('volumeVal').textContent = Math.round(p * 100); },
+        onCommit: (p) => { setVolume(p * 100); },
+      }
+    );
+
+    let initialVolume = Number(localStorage.getItem('lxr.volume')) || 80;
+    volSlider.setPct(initialVolume / 100);
+    $('volumeVal').textContent = initialVolume;
+    setVolume(initialVolume);
+
+    // ---- 进度条拖动 ----
+    const progressSlider = setupSlider(
+      $('progressTrack'), $('progressFill'), $('progressThumb'),
+      {
+        onChange: (p) => {
+          progressDragCur = p * state.duration;
+          $('timeNow').textContent = fmtTime(progressDragCur);
+        },
+        onDragStart: () => { progressDragging = true; },
+        onDragEnd: () => { progressDragging = false; },
+        onCommit: (p) => {
+          const target = p * state.duration;
+          seek(target);
+          state.progress = target;
+          state.localTickAt = performance.now();
+        },
+      }
+    );
+
+    // ---- 控制按钮 ----
+    $('btnPlay').addEventListener('click', () => state.playing ? pause() : play());
+    $('btnPrev').addEventListener('click', prev);
+    $('btnNext').addEventListener('click', next);
+
+    // ---- 窗口按钮（Tauri 版） ----
+    $('btnClose').addEventListener('click', async () => {
+      // 关闭按钮：隐藏到托盘（而不是退出）
+      if (tauriWin) await tauriWin.hide();
+    });
+
+    async function togglePin() {
+      state.alwaysOnTop = !state.alwaysOnTop;
+      if (tauriWin) {
+        await tauriWin.setAlwaysOnTop(state.alwaysOnTop);
+      }
+      $('tglPin').classList.toggle('on', state.alwaysOnTop);
+      $('btnPin').textContent = state.alwaysOnTop ? '📌' : '📍';
+    }
+    $('btnPin').addEventListener('click', togglePin);
+
+    // ---- 设置面板 ----
+    // 内容驱动高度：窗口贴合实际内容（面板开=面板高+边距，否则=body 自然高+标题栏）
+    function measureBody() {
+      const b = document.querySelector('.body');
+      const prev = b.style.flex;
+      b.style.flex = '0 0 auto';
+      const h = b.offsetHeight;
+      b.style.flex = prev;
+      return h;
+    }
+    function autoFitHeight() {
+      if (!tauriWin) return Promise.resolve();
+      const panelOpen = $('settingsPanel').classList.contains('show');
+      const h = Math.max(112, Math.ceil(panelOpen ? $('settingsPanel').offsetHeight + 12 : measureBody() + 28));
+      return tauriWin.setSize(new T.window.LogicalSize(380, h));
+    }
+    $('btnSettings').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      const show = !$('settingsPanel').classList.contains('show');
+      $('settingsPanel').classList.toggle('show');
+      await autoFitHeight();
+    });
+    $('btnSettingsClose').addEventListener('click', (e) => {
+      e.stopPropagation();
+      $('settingsPanel').classList.remove('show');
+      autoFitHeight();
+    });
+    document.addEventListener('click', (e) => {
+      if (!$('settingsPanel').contains(e.target) && e.target !== $('btnSettings')) {
+        $('settingsPanel').classList.remove('show');
+        autoFitHeight();
+      }
+    });
+
+    $('apiHost').value = state.apiBase.replace(/^https?:\/\//, '');
+    $('apiHost').addEventListener('change', () => {
+      let v = $('apiHost').value.trim();
+      if (!v) v = '127.0.0.1:23330';
+      if (!/^https?:\/\//.test(v)) v = 'http://' + v;
+      state.apiBase = v;
+      localStorage.setItem('lxr.apiBase', v);
+      $('apiHost').value = v.replace(/^https?:\/\//, '');
+      connect();
+    });
+
+    $('tglPin').addEventListener('click', togglePin);
+    $('tglSimple').addEventListener('click', async () => {
+      state.simpleMode = !state.simpleMode;
+      $('tglSimple').classList.toggle('on', state.simpleMode);
+      localStorage.setItem('lxr.simple', state.simpleMode ? '1' : '0');
+      $('app').classList.toggle('mode-simple', state.simpleMode);
+      if (tauriWin) {
+        await autoFitHeight();
+      }
+    });
+
+    // 鼠标穿透：仅穿透非交互区域。交互组件（按钮/输入/进度条/标题栏等）上自动关闭穿透，
+    // 鼠标移出到空白处再恢复穿透。穿透期间窗口收不到鼠标事件，所以用轮询系统光标位置驱动。
+    const INTERACTIVE_SELECTOR = 'button, input, select, a, [role=button], .titlebar, .settings, .progress-track, .volume-track, .toggle, .lyric-line';
+    let passthroughTimer = null;
+
+    async function updatePassthrough() {
+      if (!tauriWin) return;
+      try {
+        const pos = await window.__TAURI__.core.invoke('get_cursor_pos'); // [物理相对, 物理相对]
+        const dpr = window.devicePixelRatio || 1;
+        const el = document.elementFromPoint(pos[0] / dpr, pos[1] / dpr);
+        const interactive = !!(el && el.closest(INTERACTIVE_SELECTOR));
+        if (interactive && state.ignoreMouse) {
+          await tauriWin.setIgnoreCursorEvents(false);
+          state.ignoreMouse = false;
+        } else if (!interactive && !state.ignoreMouse) {
+          await tauriWin.setIgnoreCursorEvents(true);
+          state.ignoreMouse = true;
+        }
+      } catch (e) {}
+    }
+
+    function setPassthrough(on) {
+      state.passthrough = on;
+      $('tglPassthrough').classList.toggle('on', on);
+      if (!tauriWin) return;
+      if (on) {
+        // 标记穿透已应用到窗口：光标在窗口内点击开关开启穿透会触发 WebView2 页面重载
+        // （且清空 sessionStorage），必须用 localStorage；重载后靠此标志恢复——
+        // 只重启轮询，不重复 setIgnoreCursorEvents，避免再次触发重载死循环。
+        localStorage.setItem('lxr.pt_applied', '1');
+        tauriWin.setIgnoreCursorEvents(true).then(() => { state.ignoreMouse = true; });
+        if (!passthroughTimer) passthroughTimer = setInterval(updatePassthrough, 80);
+      } else {
+        localStorage.removeItem('lxr.pt_applied');
+        clearInterval(passthroughTimer);
+        passthroughTimer = null;
+        tauriWin.setIgnoreCursorEvents(false).then(() => { state.ignoreMouse = false; });
+      }
+    }
+
+    $('tglPassthrough').addEventListener('click', () => setPassthrough(!state.passthrough));
+
+    $('opacityRange').addEventListener('input', async (e) => {
+      const v = Number(e.target.value);
+      $('opacityVal').textContent = v + '%';
+      if (window.__TAURI__) {
+        window.__TAURI__.core.invoke('set_window_opacity', { opacity: v / 100 }).catch((e) => console.warn('[LX] set opacity failed', e));
+      }
+    });
+
+    $('btnReconnect').addEventListener('click', () => {
+      connect();
+    });
+
+    $('btnClearCache').addEventListener('click', () => {
+      localStorage.removeItem('lxr.apiBase');
+      $('apiHost').value = '127.0.0.1:23330';
+      state.apiBase = DEFAULT_API;
+      connect();
+    });
+
+    // ---- 键盘 ----
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT') return;
+      switch (e.key) {
+        case ' ': e.preventDefault(); state.playing ? pause() : play(); break;
+        case 'ArrowLeft': prev(); break;
+        case 'ArrowRight': next(); break;
+        case 'ArrowUp': e.preventDefault(); setVolume(Math.min(100, currentVol() + 5)); break;
+        case 'ArrowDown': e.preventDefault(); setVolume(Math.max(0, currentVol() - 5)); break;
+      }
+    });
+
+    function currentVol() {
+      return Number($('volumeVal').textContent) || 0;
+    }
+
+    // ---- 托盘菜单事件监听 ----
+    if (tauriEvent) {
+      tauriEvent.listen('tray-cmd', (event) => {
+        const cmd = event.payload;
+        console.log('[LX] tray cmd:', cmd);
+        switch (cmd) {
+          case 'play': state.playing ? pause() : play(); break;
+          case 'prev': prev(); break;
+          case 'next': next(); break;
+          case 'vol-up': setVolume(Math.min(100, currentVol() + 5)); break;
+          case 'vol-down': setVolume(Math.max(0, currentVol() - 5)); break;
+        }
+      }).catch((e) => console.warn('[LX] listen tray-cmd failed', e));
+    }
+
+    // ---- 启动 ----
+    connect();
+    startPolling();
+    requestAnimationFrame(tickProgress);
+
+    // 恢复简洁模式（页面可能因穿透刷新导致状态丢失）+ 校正窗口高度
+    if (localStorage.getItem('lxr.simple') === '1') {
+      state.simpleMode = true;
+      $('tglSimple').classList.add('on');
+      $('app').classList.add('mode-simple');
+    }
+    if (tauriWin) {
+      autoFitHeight();
+    }
+
+    // 穿透状态恢复：窗口穿透是窗口属性，页面刷新后依然生效。
+    // 若有 pt_applied 标志（开启穿透时写入），说明穿透已生效——
+    // 只恢复 state/UI/轮询，不再调 setIgnoreCursorEvents，避免再次触发刷新死循环。
+    if (localStorage.getItem('lxr.pt_applied')) {
+      state.passthrough = true;
+      $('tglPassthrough').classList.add('on');
+      if (!passthroughTimer) passthroughTimer = setInterval(updatePassthrough, 80);
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,16 @@
+# Rust / Cargo 构建产物
+src-tauri/target/
+target/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.suo
+
+# 日志
+*.log
