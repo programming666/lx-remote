@@ -945,6 +945,12 @@
         }
       } catch (e) {}
     }
+    function applyOpacity(v) {
+      // CSS 层透明度：WebView2 DirectComposition 窗口不吃 Win32 LWA_ALPHA，
+      // 用合成器透明度（100% 生效）代替窗口级 alpha。
+      $('app').style.opacity = String(v);
+      localStorage.setItem('lxr.opacity', String(Math.round(v * 100)));
+    }
 
     function setPassthrough(on) {
       state.passthrough = on;
@@ -967,12 +973,10 @@
 
     $('tglPassthrough').addEventListener('click', () => setPassthrough(!state.passthrough));
 
-    $('opacityRange').addEventListener('input', async (e) => {
+    $('opacityRange').addEventListener('input', (e) => {
       const v = Number(e.target.value);
       $('opacityVal').textContent = v + '%';
-      if (window.__TAURI__) {
-        window.__TAURI__.core.invoke('set_window_opacity', { opacity: v / 100 }).catch((e) => console.warn('[LX] set opacity failed', e));
-      }
+      applyOpacity(v / 100);
     });
 
     $('btnReconnect').addEventListener('click', () => {
@@ -1028,6 +1032,9 @@
       $('tglSimple').classList.add('on');
       $('app').classList.add('mode-simple');
     }
+
+    // 恢复不透明度（CSS 层透明度，WebView2 合成，DirectComposition 窗口不响应 Win32 LWA_ALPHA）
+    applyOpacity((Number(localStorage.getItem('lxr.opacity')) || 100) / 100);
     if (tauriWin) {
       autoFitHeight();
     }
