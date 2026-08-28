@@ -173,7 +173,6 @@
     }
     .progress-track.dragging .fill,
     .volume-track.dragging .fill { transition: none; }
-    }
     .progress-track .thumb {
       position: absolute;
       top: 50%;
@@ -387,9 +386,11 @@
     /* ============== 简洁模式 ============== */
     .app.mode-simple .lyric-line { display: none; }
     .app.mode-simple .track-meta { display: none; }
-    .app.mode-simple .track-info { min-height: 0; gap: 0; }
+    .app.mode-simple .track-info { min-height: 0; gap: 0; flex: 0 0 auto; }
     .app.mode-simple .track-name { font-size: 11px; line-height: 1.15; }
     .app.mode-simple .body { padding: 3px 10px 6px; gap: 3px; }
+    .app.mode-simple .controls { gap: 4px; }
+    .app.mode-simple .btn { width: 26px; height: 26px; border-radius: 6px; font-size: 12px; }
   </style>
 </head>
 <body>
